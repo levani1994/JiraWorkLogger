@@ -1,0 +1,293 @@
+@page "/"
+@inject WorkLogService WorkLogService
+@inject IConfiguration Configuration
+@implements IDisposable
+
+<PageTitle>Jira Work Logger</PageTitle>
+
+<div class="card">
+    <h1>⚡ Jira Work Logger</h1>
+    <p style="color: #718096; margin: 0 0 32px 0; font-size: 15px;">Sync your Scrinio time tracking with Jira worklogs</p>
+    
+    <h2>🔧 Configuration</h2>
+    <div class="form-group">
+        <label for="scrinToken">Scrinio Token</label>
+        <input type="text" id="scrinToken" @bind="scrinToken" placeholder="Enter Scrinio token" />
+    </div>
+    
+    <div class="form-group">
+        <label for="jiraEmail">Jira Email</label>
+        <input type="email" id="jiraEmail" @bind="jiraEmail" placeholder="Enter Jira email" />
+    </div>
+    
+    <div class="form-group">
+        <label for="jiraApiToken">Jira API Token</label>
+        <input type="password" id="jiraApiToken" @bind="jiraApiToken" placeholder="Enter Jira API token" />
+    </div>
+    
+    <div class="form-group">
+        <label for="jiraBaseUrl">Jira Company URL</label>
+        <input type="text" id="jiraBaseUrl" @bind="jiraBaseUrl" placeholder="https://yourcompany.atlassian.net" />
+    </div>
+</div>
+
+<div class="card">
+    <h2>📅 Date Range</h2>
+    <div class="date-inputs">
+        <div class="form-group">
+            <label for="startDate">Start Date</label>
+            <input type="date" id="startDate" @bind="startDate" />
+        </div>
+        <div class="form-group">
+            <label for="endDate">End Date (leave empty for single date)</label>
+            <input type="date" id="endDate" value="@(endDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnEndDateChanged" />
+        </div>
+    </div>
+    
+    <button class="btn btn-primary" @onclick="LoadPreview" disabled="@isLoading">
+        @if (isLoading)
+        {
+            <text>⏳ Loading...</text>
+        }
+        else
+        {
+            <text>🔍 Load Preview</text>
+        }
+    </button>
+</div>
+
+@if (previewItems != null && previewItems.Any())
+{
+    <div class="card">
+        <h2>📊 Preview</h2>
+        <p style="color: #718096; margin: -16px 0 24px 0; font-size: 14px;">Review your time entries before logging to Jira</p>
+        <table class="preview-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Ticket</th>
+                    <th>Hours</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in previewItems.OrderBy(p => p.Date).ThenBy(p => p.Ticket))
+                {
+                    <tr>
+                        <td>@item.Date.ToString("yyyy-MM-dd")</td>
+                        <td>@item.Ticket</td>
+                        <td>@((item.Seconds / 3600.0).ToString("F2"))</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        
+        <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e2e8f0;">
+            <button class="btn btn-success" @onclick="LogToJira" disabled="@(isLogging || isLoading)">
+                @if (isLogging)
+                {
+                    <text>⏳ Logging...</text>
+                }
+                else
+                {
+                    <text>✅ Log Time to Jira</text>
+                }
+            </button>
+        </div>
+    </div>
+}
+
+@if (logMessages.Any())
+{
+    <div class="card">
+        <h2>📝 Log Messages</h2>
+        <div class="log-container">
+            @foreach (var msg in logMessages)
+            {
+                <div class="log-message @msg.Type">@msg.Message</div>
+            }
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-error">
+        @errorMessage
+    </div>
+}
+
+@code {
+    private string scrinToken = "";
+    private string jiraEmail = "";
+    private string jiraApiToken = "";
+    private string jiraBaseUrl = "";
+    private int timeZoneOffsetMinutes = 240;
+    private DateTime startDate = DateTime.Today;
+    private DateTime? endDate = null;
+    
+    private List<WorkLogService.PreviewItem>? previewItems = null;
+    private bool isLoading = false;
+    private bool isLogging = false;
+    private string errorMessage = "";
+    private List<WorkLogService.LogMessage> logMessages = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        
+        try
+        {
+            // Optionally pre-populate from appsettings.json
+            var scrinTokenConfig = Configuration["Scrin:Token"];
+            var jiraEmailConfig = Configuration["Jira:Email"];
+            var jiraApiTokenConfig = Configuration["Jira:ApiToken"];
+            var jiraBaseUrlConfig = Configuration["Jira:BaseUrl"];
+            var timeZoneOffsetConfig = Configuration["Settings:TimeZoneOffsetMinutes"];
+            
+            if (!string.IsNullOrWhiteSpace(scrinTokenConfig))
+                scrinToken = scrinTokenConfig;
+            if (!string.IsNullOrWhiteSpace(jiraEmailConfig))
+                jiraEmail = jiraEmailConfig;
+            if (!string.IsNullOrWhiteSpace(jiraApiTokenConfig))
+                jiraApiToken = jiraApiTokenConfig;
+            if (!string.IsNullOrWhiteSpace(jiraBaseUrlConfig))
+                jiraBaseUrl = jiraBaseUrlConfig;
+            if (!string.IsNullOrWhiteSpace(timeZoneOffsetConfig) && int.TryParse(timeZoneOffsetConfig, out var offset))
+                timeZoneOffsetMinutes = offset;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error initializing: {ex.Message}";
+        }
+    }
+
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                WorkLogService.OnLogMessage += HandleLogMessage;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Error setting up log handler: {ex.Message}";
+            }
+        }
+    }
+
+    private void HandleLogMessage(WorkLogService.LogMessage message)
+    {
+        try
+        {
+            logMessages.Add(message);
+            _ = InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // Ignore errors in event handler
+        }
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            WorkLogService.OnLogMessage -= HandleLogMessage;
+        }
+        catch
+        {
+            // Ignore errors during disposal
+        }
+    }
+
+    private void OnEndDateChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            endDate = null;
+        }
+        else if (DateTime.TryParse(value, out var date))
+        {
+            endDate = date;
+        }
+    }
+
+    private async Task LoadPreview()
+    {
+        if (string.IsNullOrWhiteSpace(scrinToken) || 
+            string.IsNullOrWhiteSpace(jiraEmail) || 
+            string.IsNullOrWhiteSpace(jiraApiToken) || 
+            string.IsNullOrWhiteSpace(jiraBaseUrl))
+        {
+            errorMessage = "Please fill in all configuration fields.";
+            return;
+        }
+
+        isLoading = true;
+        errorMessage = "";
+        logMessages.Clear();
+        previewItems = null;
+        StateHasChanged();
+
+        try
+        {
+            var end = endDate ?? startDate;
+            previewItems = await WorkLogService.GetPreview(
+                scrinToken,
+                jiraEmail,
+                jiraApiToken,
+                jiraBaseUrl,
+                timeZoneOffsetMinutes,
+                startDate,
+                end
+            );
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading preview: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LogToJira()
+    {
+        if (previewItems == null || !previewItems.Any())
+        {
+            errorMessage = "No preview items to log.";
+            return;
+        }
+
+        isLogging = true;
+        errorMessage = "";
+        logMessages.Clear();
+        StateHasChanged();
+
+        try
+        {
+            await WorkLogService.LogToJira(
+                previewItems,
+                jiraEmail,
+                jiraApiToken,
+                jiraBaseUrl,
+                timeZoneOffsetMinutes
+            );
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error logging to Jira: {ex.Message}";
+        }
+        finally
+        {
+            isLogging = false;
+            StateHasChanged();
+        }
+    }
+}
+
