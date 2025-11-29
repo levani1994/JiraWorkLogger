@@ -7,7 +7,7 @@
 
 <div class="card">
     <h1>⚡ Jira Work Logger</h1>
-    <p style="color: #718096; margin: 0 0 32px 0; font-size: 15px;">Sync your Scrinio time tracking with Jira worklogs</p>
+    <p style="color: #718096; margin: 0 0 20px 0; font-size: 13px;">Sync your Scrinio time tracking with Jira worklogs</p>
     
     <h2>🔧 Configuration</h2>
     <div class="form-group">
@@ -50,23 +50,52 @@
         </div>
     </div>
     
-    <button class="btn btn-primary" @onclick="LoadPreview" disabled="@isLoading">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <button class="btn btn-primary" @onclick="LoadPreview" disabled="@isLoading">
+            @if (isLoading)
+            {
+                <span class="spinner"></span>
+                <text>Loading...</text>
+            }
+            else
+            {
+                <text>🔍 Load Preview</text>
+            }
+        </button>
         @if (isLoading)
         {
-            <text>⏳ Loading...</text>
+            <span class="loading-text">Fetching data from Scrinio...</span>
         }
-        else
-        {
-            <text>🔍 Load Preview</text>
-        }
-    </button>
+    </div>
 </div>
 
 @if (previewItems != null && previewItems.Any())
 {
+    var totalHours = previewItems.Sum(p => p.Seconds) / 3600.0;
+    var totalEntries = previewItems.Count;
+    var uniqueTickets = previewItems.Select(p => p.Ticket).Distinct().Count();
+    
     <div class="card">
-        <h2>📊 Preview</h2>
-        <p style="color: #718096; margin: -16px 0 24px 0; font-size: 14px;">Review your time entries before logging to Jira</p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div>
+                <h2>📊 Preview</h2>
+                <p style="color: #718096; margin: -12px 0 0 0; font-size: 12px;">Review your time entries before logging to Jira</p>
+            </div>
+            <div class="preview-summary">
+                <div class="summary-item">
+                    <span class="summary-label">Total Hours</span>
+                    <span class="summary-value">@totalHours.ToString("F2")</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Entries</span>
+                    <span class="summary-value">@totalEntries</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Tickets</span>
+                    <span class="summary-value">@uniqueTickets</span>
+                </div>
+            </div>
+        </div>
         <table class="preview-table">
             <thead>
                 <tr>
@@ -80,14 +109,17 @@
                 {
                     <tr>
                         <td>@item.Date.ToString("yyyy-MM-dd")</td>
-                        <td>@item.Ticket</td>
-                        <td>@((item.Seconds / 3600.0).ToString("F2"))</td>
+                        <td><strong>@item.Ticket</strong></td>
+                        <td class="hours-cell">@((item.Seconds / 3600.0).ToString("F2"))</td>
                     </tr>
                 }
             </tbody>
         </table>
         
-        <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e2e8f0;">
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 2px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+            <div class="preview-total">
+                <strong>Total: @totalHours.ToString("F2") hours across @uniqueTickets ticket(s)</strong>
+            </div>
             <button class="btn btn-success" @onclick="LogToJira" disabled="@(isLogging || isLoading)">
                 @if (isLogging)
                 {
@@ -101,24 +133,78 @@
         </div>
     </div>
 }
-
-@if (logMessages.Any())
+else if (previewItems != null && !previewItems.Any())
 {
     <div class="card">
-        <h2>📝 Log Messages</h2>
-        <div class="log-container">
-            @foreach (var msg in logMessages)
-            {
-                <div class="log-message @msg.Type">@msg.Message</div>
-            }
+        <div class="preview-empty">
+            <div class="preview-empty-icon">📭</div>
+            <p><strong>No time entries found</strong></p>
+            <p class="preview-empty-hint">No activities with notes found for the selected date range. Make sure you have time entries with notes in Scrinio.</p>
         </div>
     </div>
 }
 
+<div class="card">
+    <div class="log-header">
+        <div>
+            <h2>📝 Activity Log</h2>
+            <p class="log-subtitle">Real-time updates from your sync operations</p>
+        </div>
+        <div class="log-header-actions">
+            @if (logMessages.Any())
+            {
+                <div class="log-stats">
+                    <span class="stat-badge stat-success">@logMessages.Count(m => m.Type == "success") ✓</span>
+                    <span class="stat-badge stat-info">@logMessages.Count(m => m.Type == "info") ℹ</span>
+                    <span class="stat-badge stat-error">@logMessages.Count(m => m.Type == "error") ✕</span>
+                </div>
+                <button class="btn-clear" @onclick="ClearLogs" title="Clear all log messages">
+                    🗑️ Clear
+                </button>
+            }
+        </div>
+    </div>
+    <div class="log-container" @ref="logContainerRef">
+        @if (!logMessages.Any())
+        {
+            <div class="log-empty">
+                <div class="log-empty-icon">📋</div>
+                <p>No log messages yet</p>
+                <p class="log-empty-hint">Start a sync operation to see activity here</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var msg in logMessages)
+            {
+                <div class="log-message @msg.Type">
+                    <div class="log-icon">
+                        @if (msg.Type == "success")
+                        {
+                            <span>✓</span>
+                        }
+                        else if (msg.Type == "error")
+                        {
+                            <span>✕</span>
+                        }
+                        else
+                        {
+                            <span>ℹ</span>
+                        }
+                    </div>
+                    <div class="log-content">
+                        <div class="log-text">@msg.Message</div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
 @if (!string.IsNullOrEmpty(errorMessage))
 {
     <div class="alert alert-error">
-        @errorMessage
+        <strong>⚠️ Error:</strong> @errorMessage
     </div>
 }
 
@@ -183,17 +269,42 @@
         }
     }
 
+    private ElementReference logContainerRef;
+
     private void HandleLogMessage(WorkLogService.LogMessage message)
     {
         try
         {
             logMessages.Add(message);
-            _ = InvokeAsync(StateHasChanged);
+            _ = InvokeAsync(async () =>
+            {
+                StateHasChanged();
+                await ScrollToBottom();
+            });
         }
         catch
         {
             // Ignore errors in event handler
         }
+    }
+
+    private async Task ScrollToBottom()
+    {
+        try
+        {
+            await Task.Delay(100); // Small delay to ensure DOM is updated
+            // Auto-scroll happens naturally as container grows
+        }
+        catch
+        {
+            // Ignore errors
+        }
+    }
+
+    private void ClearLogs()
+    {
+        logMessages.Clear();
+        StateHasChanged();
     }
 
     public void Dispose()
@@ -223,12 +334,15 @@
 
     private async Task LoadPreview()
     {
-        if (string.IsNullOrWhiteSpace(scrinToken) || 
-            string.IsNullOrWhiteSpace(jiraEmail) || 
-            string.IsNullOrWhiteSpace(jiraApiToken) || 
-            string.IsNullOrWhiteSpace(jiraBaseUrl))
+        var missingFields = new List<string>();
+        if (string.IsNullOrWhiteSpace(scrinToken)) missingFields.Add("Scrinio Token");
+        if (string.IsNullOrWhiteSpace(jiraEmail)) missingFields.Add("Jira Email");
+        if (string.IsNullOrWhiteSpace(jiraApiToken)) missingFields.Add("Jira API Token");
+        if (string.IsNullOrWhiteSpace(jiraBaseUrl)) missingFields.Add("Jira Company URL");
+        
+        if (missingFields.Any())
         {
-            errorMessage = "Please fill in all configuration fields.";
+            errorMessage = $"Please fill in the following fields: {string.Join(", ", missingFields)}";
             return;
         }
 
