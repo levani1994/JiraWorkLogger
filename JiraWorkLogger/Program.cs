@@ -18,7 +18,14 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// Only use HTTPS redirection in non-container environments
+// Render.com handles HTTPS termination
+var port = Environment.GetEnvironmentVariable("PORT");
+if (string.IsNullOrEmpty(port))
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseStaticFiles();
 
 app.UseRouting();
@@ -26,5 +33,12 @@ app.UseRouting();
 app.MapRazorPages();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
+
+// Use PORT environment variable if available (for Render.com)
+var url = string.IsNullOrEmpty(port) ? null : $"http://0.0.0.0:{port}";
+if (url != null)
+{
+    app.Urls.Add(url);
+}
 
 app.Run();
