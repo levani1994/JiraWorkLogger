@@ -133,7 +133,7 @@
                     <tr>
                         <td>@item.Date.ToString("yyyy-MM-dd")</td>
                         <td><strong>@item.Ticket</strong></td>
-                        <td class="hours-cell">@((item.Seconds / 3600.0).ToString("F2"))</td>
+                        <td class="hours-cell">@(TimeSpan.FromSeconds(item.Seconds).ToString(@"h\:mm"))</td>
                     </tr>
                 }
             </tbody>
