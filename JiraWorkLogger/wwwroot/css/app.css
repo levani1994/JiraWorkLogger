@@ -155,6 +155,35 @@ html, body {
     transform: none;
 }
 
+.quick-dates {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.quick-date-btn {
+    padding: 6px 12px;
+    background: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    color: #4a5568;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.quick-date-btn:hover {
+    background: #edf2f7;
+    border-color: #cbd5e0;
+    color: #2d3748;
+}
+
+.quick-date-btn:active {
+    transform: translateY(1px);
+}
+
 .date-inputs {
     display: flex;
     gap: 16px;
@@ -333,6 +362,68 @@ html, body {
     background-color: #fff5f5;
     color: #742a2a;
     border-left-color: #f56565;
+    position: relative;
+}
+
+.alert-dismiss {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.alert-dismiss:hover {
+    opacity: 1;
+}
+
+.success-toast {
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.progress-info {
+    font-size: 12px;
+    color: #718096;
+    font-style: italic;
+}
+
+.btn-toggle {
+    padding: 6px 10px;
+    background: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    color: #4a5568;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-toggle:hover {
+    background: #edf2f7;
+    border-color: #cbd5e0;
 }
 
 .loading {
