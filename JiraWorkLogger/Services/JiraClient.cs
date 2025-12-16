@@ -146,27 +146,24 @@ public class JiraClient
             if (!worklogData.TryGetProperty("worklogs", out var worklogs))
                 return false;
 
+            var userOffset = TimeSpan.FromMinutes(_tzOffset);
+
             foreach (var worklog in worklogs.EnumerateArray())
             {
-                // Check if this worklog belongs to current user
-                if (worklog.TryGetProperty("author", out var author))
+                if (worklog.TryGetProperty("author", out var author) &&
+                    author.TryGetProperty("accountId", out var authorAccountId) &&
+                    authorAccountId.GetString() == _accountId)
                 {
-                    if (author.TryGetProperty("accountId", out var authorAccountId))
+                    if (worklog.TryGetProperty("started", out var started))
                     {
-                        var authorId = authorAccountId.GetString();
-
-                        // Only check worklogs by current user
-                        if (authorId == _accountId)
+                        var startedStr = started.GetString();
+                        if (DateTimeOffset.TryParse(startedStr, out var worklogDate))
                         {
-                            if (worklog.TryGetProperty("started", out var started))
+                            // Convert both to the user's local time before comparing
+                            var userTime = worklogDate.ToOffset(userOffset);
+                            if (userTime.Date == logDate.Date)
                             {
-                                var startedStr = started.GetString();
-                                if (DateTime.TryParse(startedStr, out var worklogDate))
-                                {
-                                    // Check if the worklog is on the same date
-                                    if (worklogDate.Date == logDate.Date)
-                                        return true;
-                                }
+                                return true;
                             }
                         }
                     }
@@ -178,7 +175,7 @@ public class JiraClient
         catch (Exception ex)
         {
             Log($"Error checking existing worklogs for {issueKey}: {ex.Message}", "error");
-            return false; // If we can't check, assume it doesn't exist and try to add
+            return false;
         }
     }
 }

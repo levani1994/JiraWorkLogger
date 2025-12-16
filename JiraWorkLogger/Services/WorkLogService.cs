@@ -56,8 +56,8 @@ namespace JiraWorkLogger.Services
 
                 for (var date = startDate; date <= endDate; date = date.AddDays(1))
                 {
-                    long fromUnix = DateToUnixStart(date);
-                    long toUnix = DateToUnixEnd(date);
+                    long fromUnix = DateToUnixStart(date, timeZoneOffsetMinutes);
+                    long toUnix = DateToUnixEnd(date, timeZoneOffsetMinutes);
 
                     var activities = await scrin.GetActivities(employmentId, fromUnix, toUnix);
 
@@ -115,16 +115,18 @@ namespace JiraWorkLogger.Services
             Log("Done.", "success");
         }
 
-        private static long DateToUnixStart(DateTime date)
+        private static long DateToUnixStart(DateTime date, int timeZoneOffsetMinutes)
         {
-            var utc = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0, DateTimeKind.Utc);
-            return ((DateTimeOffset)utc).ToUnixTimeSeconds();
+            var offset = TimeSpan.FromMinutes(timeZoneOffsetMinutes);
+            var localTime = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, offset);
+            return localTime.ToUnixTimeSeconds();
         }
 
-        private static long DateToUnixEnd(DateTime date)
+        private static long DateToUnixEnd(DateTime date, int timeZoneOffsetMinutes)
         {
-            var utc = new DateTime(date.Year, date.Month, date.Day, 23, 59, 59, DateTimeKind.Utc);
-            return ((DateTimeOffset)utc).ToUnixTimeSeconds();
+            var offset = TimeSpan.FromMinutes(timeZoneOffsetMinutes);
+            var localTime = new DateTimeOffset(date.Year, date.Month, date.Day, 23, 59, 59, offset);
+            return localTime.ToUnixTimeSeconds();
         }
     }
 }

@@ -51,6 +51,11 @@
             <label for="jiraBaseUrl">Jira Company URL</label>
             <input type="text" id="jiraBaseUrl" @bind="jiraBaseUrl" placeholder="https://yourcompany.atlassian.net" />
         </div>
+
+        <div class="form-group">
+            <label for="timeZoneOffset">Timezone Offset (in minutes)</label>
+            <input type="number" id="timeZoneOffset" @bind="timeZoneOffsetMinutes" />
+        </div>
     }
 </div>
 
