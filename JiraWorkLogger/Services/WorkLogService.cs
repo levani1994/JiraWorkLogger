@@ -62,11 +62,16 @@ namespace JiraWorkLogger.Services
                     var activities = await scrin.GetActivities(employmentId, fromUnix, toUnix);
 
                     var dayGroups = activities
-                        .Where(a => !string.IsNullOrWhiteSpace(a.Note))
+                        .Where(a => !string.IsNullOrWhiteSpace(a.Note) && a.From < toUnix && a.To > fromUnix)
                         .GroupBy(a => a.Note)
                         .ToDictionary(
                             g => g.Key,
-                            g => g.Sum(a => a.To - a.From)
+                            g => g.Sum(a =>
+                            {
+                                var start = Math.Max(a.From, fromUnix);
+                                var end = Math.Min(a.To, toUnix);
+                                return end > start ? end - start : 0;
+                            })
                         );
 
                     foreach (var entry in dayGroups)
